@@ -22,35 +22,37 @@ pub struct Config {
     mysql: Option<MysqlConfig>,
 }
 
+#[serde(untagged)]
 #[derive(Debug, Deserialize, Serialize)]
-pub struct SslConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    verify: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    verify_hostname: Option<bool>,
-    cert: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    key: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    key_password: Option<String>,
-    cipher: String,
-    cipher_tls13: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    prefer_server_cipher: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    sni: Option<String>,
-    alpn: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    alpn_port_override: Option<HashMap<String, u16>>,
-    reuse_session: bool,
-    session_ticket: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    session_timeout: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    plain_http_response: Option<String>,
-    curves: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    dhparam: Option<String>,
+pub enum SslConfig {
+    Client {
+        verify: bool,
+        verify_hostname: bool,
+        cert: String,
+        cipher: String,
+        cipher_tls13: String,
+        sni: String,
+        alpn: Vec<String>,
+        reuse_session: bool,
+        session_ticket: bool,
+        curves: String,
+    },
+    Server {
+        cert: String,
+        key: String,
+        key_password: String,
+        cipher: String,
+        cipher_tls13: String,
+        prefer_server_cipher: bool,
+        alpn: Vec<String>,
+        alpn_port_override: HashMap<String, u16>,
+        reuse_session: bool,
+        session_ticket: bool,
+        session_timeout: u32,
+        plain_http_response: String,
+        curves: String,
+        dhparam: String,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize)]
