@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+
+pub use self::ssl::Config as SslConfig;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
@@ -20,39 +21,6 @@ pub struct Config {
     tcp: TcpConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     mysql: Option<MysqlConfig>,
-}
-
-#[serde(untagged)]
-#[derive(Debug, Deserialize, Serialize)]
-pub enum SslConfig {
-    Client {
-        verify: bool,
-        verify_hostname: bool,
-        cert: String,
-        cipher: String,
-        cipher_tls13: String,
-        sni: String,
-        alpn: Vec<String>,
-        reuse_session: bool,
-        session_ticket: bool,
-        curves: String,
-    },
-    Server {
-        cert: String,
-        key: String,
-        key_password: String,
-        cipher: String,
-        cipher_tls13: String,
-        prefer_server_cipher: bool,
-        alpn: Vec<String>,
-        alpn_port_override: HashMap<String, u16>,
-        reuse_session: bool,
-        session_ticket: bool,
-        session_timeout: u32,
-        plain_http_response: String,
-        curves: String,
-        dhparam: String,
-    },
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -77,4 +45,65 @@ pub struct MysqlConfig {
     key: String,
     cert: String,
     ca: String,
+}
+
+mod ssl {
+    use super::*;
+
+    use std::collections::HashMap;
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Client {
+        verify: bool,
+        verify_hostname: bool,
+        cert: String,
+        cipher: String,
+        cipher_tls13: String,
+        sni: String,
+        alpn: Vec<String>,
+        reuse_session: bool,
+        session_ticket: bool,
+        curves: String,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Server {
+        cert: String,
+        key: String,
+        key_password: String,
+        cipher: String,
+        cipher_tls13: String,
+        prefer_server_cipher: bool,
+        alpn: Vec<String>,
+        alpn_port_override: HashMap<String, u16>,
+        reuse_session: bool,
+        session_ticket: bool,
+        session_timeout: u32,
+        plain_http_response: String,
+        curves: String,
+        dhparam: String,
+    }
+
+    #[serde(untagged)]
+    #[derive(Debug, Deserialize, Serialize)]
+    pub enum Config {
+        Client(Client),
+        Server(Server),
+    }
+
+    impl Config {
+        pub fn client(&self) -> &Client {
+            match self {
+                Self::Client(c) => c,
+                _ => panic!(),
+            }
+        }
+
+        pub fn server(&self) -> &Server {
+            match self {
+                Self::Server(s) => s,
+                _ => panic!(),
+            }
+        }
+    }
 }
