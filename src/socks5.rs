@@ -65,7 +65,7 @@ impl Socks5Addr {
 impl Socks5Listener {
     pub async fn listen<A: ToSocketAddrs>(addr: A) -> Result<()> {
         let mut listener = TcpListener::bind(addr).await?;
-        let (mut accept_sender, mut accept_receiver) = channel::<TcpStream>(32);
+        let (mut accept_sender, mut accept_receiver) = channel::<TcpStream>(1024);
 
         let acceptor = async move {
             loop {
@@ -108,57 +108,65 @@ impl Socks5Listener {
     }
 
     async fn handle_accept(mut c: TcpStream) -> Result<()> {
-        eprintln!("handle_accept: {}", c.peer_addr()?);
-        let mut buf = Vec::with_capacity(1024);
-        let mut n: usize = 0;
+        let mut buf = Vec::with_capacity(512);
+        let mut n;
+        let mut len = 0;
 
-        // TODO
-        loop {
-            n += c.read_buf(&mut buf).await?;
-            if n >= 2 {
+        while {
+            n = c.read_buf(&mut buf).await?;
+            n > 0
+        } {
+            if buf.len() >= 2 {
+                len = 2 + buf[1] as usize;
+            }
+
+            if len > 0 && buf.len() >= len {
                 break;
             }
         }
-        c.write_all(b"\x05\x00").await?;
-
-        unsafe { buf.set_len(512) };
-        let mut data = Vec::with_capacity(512);
-        let mut data_len = None;
-
-        while {
-            n = c.read(&mut buf).await?;
-            n > 0
-        } {
-            data.append(&mut buf[..n].into());
-
-            if data_len.is_none() && data.len() >= 5 {
-                data_len = Some(match data[3] {
-                    1 => 10,
-                    4 => 22,
-                    3 => 7 + data[4] as usize,
-                    _ => return Err(io_error("Invalid Address Type!")),
-                });
-            }
-
-            if let Some(len) = data_len {
-                if data.len() >= len {
-                    break;
-                }
-            }
-        }
-
-        if data_len.is_none() || data.len() != data_len.unwrap() || data[0] != 5 || data[2] != 0 {
+        if len == 0 || buf.len() != len || buf[0] != 5 {
             return Err(io_error("Invalid Request!"));
         }
 
-        if data[1] != 1 {
-            return Err(io_error("Unsupported Authentication Method!"));
+        if !buf[2..].contains(&0) {
+            return Err(io_error("No Supported Authentication Method!"));
         }
 
-        let addr = match data[3] {
-            1 => unsafe { Socks5Addr::parse_ipv4(&data[4..]) },
-            4 => unsafe { Socks5Addr::parse_ipv6(&data[4..]) },
-            3 => Socks5Addr::try_parse_domain(&data[4..])?,
+        c.write_all(b"\x05\x00").await?;
+
+        buf.clear();
+        len = 0;
+
+        while {
+            n = c.read_buf(&mut buf).await?;
+            n > 0
+        } {
+            if len == 0 && buf.len() >= 5 {
+                len = match buf[3] {
+                    1 => 10,
+                    4 => 22,
+                    3 => 7 + buf[4] as usize,
+                    _ => return Err(io_error("Invalid Address Type!")),
+                };
+            }
+
+            if len > 0 && buf.len() >= len {
+                break;
+            }
+        }
+
+        if len == 0 || buf.len() != len || buf[0] != 5 || buf[2] != 0 {
+            return Err(io_error("Invalid Request!"));
+        }
+
+        if buf[1] != 1 {
+            return Err(io_error("Unsupported Request Command!"));
+        }
+
+        let addr = match buf[3] {
+            1 => unsafe { Socks5Addr::parse_ipv4(&buf[4..]) },
+            4 => unsafe { Socks5Addr::parse_ipv6(&buf[4..]) },
+            3 => Socks5Addr::try_parse_domain(&buf[4..])?,
             _ => unreachable!(),
         };
 
