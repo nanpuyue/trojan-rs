@@ -4,11 +4,13 @@ use std::net::{SocketAddrV4, SocketAddrV6};
 
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
-use tokio::sync::mpsc::channel;
+use tokio::stream::StreamExt;
 
 use crate::error::io_error;
 
-pub struct Socks5Listener;
+pub struct Socks5Listener {
+    listener: TcpListener,
+}
 
 pub enum Socks5Addr {
     V4(SocketAddrV4),
@@ -63,48 +65,26 @@ impl Socks5Addr {
 }
 
 impl Socks5Listener {
-    pub async fn listen<A: ToSocketAddrs>(addr: A) -> Result<()> {
-        let mut listener = TcpListener::bind(addr).await?;
-        let (mut accept_sender, mut accept_receiver) = channel::<TcpStream>(1024);
+    pub async fn listen<A: ToSocketAddrs>(addr: A) -> Result<Self> {
+        Ok(Self {
+            listener: TcpListener::bind(addr).await?,
+        })
+    }
 
-        let acceptor = async move {
-            loop {
-                match listener.accept().await {
-                    Ok((socket, addr)) => {
-                        eprintln!("received connection from {}", addr);
-                        if let Err(e) = accept_sender.send(socket).await {
-                            eprintln!("accept_sender err: {}", e);
-                            break;
-                        }
+    pub async fn handle_incoming(&mut self) -> Result<()> {
+        async move {
+            let mut incoming = self.listener.incoming();
+            while let Some(s) = incoming.next().await.transpose()? {
+                eprintln!("accepted connection from {}", s.peer_addr().unwrap());
+                tokio::spawn(async move {
+                    if let Err(e) = Self::handle_accept(s).await {
+                        eprintln!("handle_accept err: {}", e)
                     }
-                    Err(e) => {
-                        eprintln!("accept connection err: {}", e);
-                        break;
-                    }
-                }
+                });
             }
-        };
-
-        let connector = async move {
-            loop {
-                if let Some(s) = accept_receiver.recv().await {
-                    tokio::spawn(async move {
-                        if let Err(e) = Self::handle_accept(s).await {
-                            eprintln!("handle_accept err: {}", e)
-                        }
-                    });
-                }
-            }
-        };
-
-        if let Err(e) = tokio::select! {
-            r1 = tokio::spawn(acceptor) => r1,
-            r2 = tokio::spawn(connector) => r2,
-        } {
-            Err(io_error(&e.to_string()))
-        } else {
             Ok(())
         }
+        .await
     }
 
     async fn handle_accept(mut c: TcpStream) -> Result<()> {
@@ -129,6 +109,7 @@ impl Socks5Listener {
         }
 
         if !buf[2..].contains(&0) {
+            c.write_all(b"\x05\xff").await?;
             return Err(io_error("No Supported Authentication Method!"));
         }
 
