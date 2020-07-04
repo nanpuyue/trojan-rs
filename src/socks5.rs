@@ -52,6 +52,14 @@ impl Socks5Addr {
         let port = u16::from_be_bytes([data[len - 2], data[len - 1]]).to_string();
         Ok(Self::Domain(domain + ":" + &port))
     }
+
+    pub async fn connect(&self) -> Result<TcpStream> {
+        match self {
+            Self::V4(s) => TcpStream::connect(s).await,
+            Self::V6(s) => TcpStream::connect(s).await,
+            Self::Domain(s) => TcpStream::connect(s).await,
+        }
+    }
 }
 
 impl Socks5Listener {
@@ -155,7 +163,7 @@ impl Socks5Listener {
         };
 
         eprintln!("connect {}...", addr);
-        let s = TcpStream::connect(addr.to_string()).await?;
+        let s = addr.connect().await?;
         // TODO
         c.write_all(b"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00")
             .await?;
