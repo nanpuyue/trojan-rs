@@ -39,3 +39,4 @@ impl Into<Error> for &str {
 }
 
 impl IntoError for io::Error {}
+impl IntoError for native_tls::Error {}
