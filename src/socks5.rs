@@ -1,11 +1,12 @@
 use std::fmt::{Display, Formatter};
 use std::net::{SocketAddrV4, SocketAddrV6};
 
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio::stream::StreamExt;
 
 use crate::error::Result;
+use crate::util::link_stream;
 
 pub struct Socks5Listener {
     listener: TcpListener,
@@ -160,7 +161,7 @@ impl Socks5Stream {
                 self.stream
                     .write_all(b"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00")
                     .await?;
-                link_tcpstream(self.stream, upstream).await
+                link_stream(self.stream, upstream).await
             }
             Err(e) => {
                 self.stream
@@ -200,20 +201,4 @@ impl Socks5Listener {
         }
         .await
     }
-}
-
-async fn link_tcpstream(a: TcpStream, b: TcpStream) -> Result<()> {
-    let (ar, aw) = &mut io::split(a);
-    let (br, bw) = &mut io::split(b);
-
-    let r = tokio::select! {
-        r1 = io::copy(ar, bw) => {
-            r1
-        },
-        r2 = io::copy(br, aw) => {
-            r2
-        }
-    };
-
-    Ok(r.map(drop)?)
 }

@@ -1,3 +1,7 @@
+use tokio::io::{self, AsyncRead, AsyncWrite};
+
+use crate::error::Result;
+
 pub trait ToHex {
     fn to_hex(&self) -> String;
 }
@@ -14,4 +18,23 @@ impl ToHex for [u8] {
 
         unsafe { String::from_utf8_unchecked(v) }
     }
+}
+
+pub async fn link_stream<A: AsyncRead + AsyncWrite, B: AsyncRead + AsyncWrite>(
+    a: A,
+    b: B,
+) -> Result<()> {
+    let (ar, aw) = &mut io::split(a);
+    let (br, bw) = &mut io::split(b);
+
+    let r = tokio::select! {
+        r1 = io::copy(ar, bw) => {
+            r1
+        },
+        r2 = io::copy(br, aw) => {
+            r2
+        }
+    };
+
+    Ok(r.map(drop)?)
 }
