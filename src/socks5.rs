@@ -1,12 +1,11 @@
 use std::fmt::{Display, Formatter};
-use std::io::Result;
 use std::net::{SocketAddrV4, SocketAddrV6};
 
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio::stream::StreamExt;
 
-use crate::error::io_error;
+use crate::error::Result;
 
 pub struct Socks5Listener {
     listener: TcpListener,
@@ -55,18 +54,18 @@ impl Socks5Addr {
         let len = data.len();
         let domain = match String::from_utf8(data[1..len - 2].into()) {
             Ok(s) => s,
-            Err(e) => return Err(io_error(&format!("Invalid Domain: {}!", e))),
+            Err(e) => return Err(format!("Invalid Domain: {}!", e).into()),
         };
         let port = u16::from_be_bytes([data[len - 2], data[len - 1]]).to_string();
         Ok(Self::Domain(domain + ":" + &port))
     }
 
     async fn connect(&self) -> Result<TcpStream> {
-        match self {
-            Self::V4(s) => TcpStream::connect(s).await,
-            Self::V6(s) => TcpStream::connect(s).await,
-            Self::Domain(s) => TcpStream::connect(s).await,
-        }
+        Ok(match self {
+            Self::V4(s) => TcpStream::connect(s).await?,
+            Self::V6(s) => TcpStream::connect(s).await?,
+            Self::Domain(s) => TcpStream::connect(s).await?,
+        })
     }
 }
 
@@ -97,12 +96,12 @@ impl Socks5Stream {
             }
         }
         if len == 0 || self.buf.len() != len || self.buf[0] != 5 {
-            return Err(io_error("Invalid Request!"));
+            return Err("Invalid Request!".into());
         }
 
         if !self.buf[2..].contains(&0) {
             self.stream.write_all(b"\x05\xff").await?;
-            return Err(io_error("No Supported Authentication Method!"));
+            return Err("No Supported Authentication Method!".into());
         }
 
         self.stream.write_all(b"\x05\x00").await?;
@@ -125,7 +124,7 @@ impl Socks5Stream {
                     3 => 7 + self.buf[4] as usize,
                     _ => {
                         self.stream.write_all(b"\x05\x08").await?;
-                        return Err(io_error("Invalid Address Type!"));
+                        return Err("Invalid Address Type!".into());
                     }
                 };
             }
@@ -136,12 +135,12 @@ impl Socks5Stream {
         }
 
         if len == 0 || self.buf.len() != len || self.buf[0] != 5 || self.buf[2] != 0 {
-            return Err(io_error("Invalid Request!"));
+            return Err("Invalid Request!".into());
         }
 
         if self.buf[1] != 1 {
             self.stream.write_all(b"\x05\x07").await?;
-            return Err(io_error("Unsupported Request Command!"));
+            return Err("Unsupported Request Command!".into());
         }
 
         self.addr = Some(match self.buf[3] {
@@ -207,12 +206,14 @@ async fn link_tcpstream(a: TcpStream, b: TcpStream) -> Result<()> {
     let (ar, aw) = &mut io::split(a);
     let (br, bw) = &mut io::split(b);
 
-    tokio::select! {
+    let r = tokio::select! {
         r1 = io::copy(ar, bw) => {
-            r1.map(drop)
+            r1
         },
         r2 = io::copy(br, aw) => {
-            r2.map(drop)
+            r2
         }
-    }
+    };
+
+    Ok(r.map(drop)?)
 }

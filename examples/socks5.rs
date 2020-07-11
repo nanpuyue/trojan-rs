@@ -1,6 +1,5 @@
-use std::io::Result;
-
-use trojan::socks5::*;
+use trojan::error::Result;
+use trojan::socks5::Socks5Listener;
 
 #[tokio::main]
 async fn main() -> Result<()> {
