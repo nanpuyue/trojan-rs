@@ -1,18 +1,18 @@
 use super::*;
 
+unsafe fn parse_target(data: &[u8]) -> Result<Socks5Target> {
+    Ok(match data[0] {
+        1 => Socks5Target::parse_ipv4(&data[1..]),
+        4 => Socks5Target::parse_ipv6(&data[1..]),
+        3 => Socks5Target::try_parse_domain(&data[1..])?,
+        _ => return Err("Invalid Address Type!".into()),
+    })
+}
+
 pub enum Socks5Target {
     V4(SocketAddrV4),
     V6(SocketAddrV6),
     Domain(String),
-}
-
-impl From<Socks5Target> for DirectConnector {
-    fn from(target: Socks5Target) -> Self {
-        Self {
-            target,
-            stream: None,
-        }
-    }
 }
 
 impl Display for Socks5Target {
@@ -68,6 +68,12 @@ pub trait TargetConnector: Send {
         Ok(())
     }
 
+    unsafe fn new(target: &[u8]) -> Result<Self>
+    where
+        Self: Sized;
+
+    fn target(&self) -> &Socks5Target;
+
     fn take_stream(&mut self) -> Option<Self::Stream>;
 }
 
@@ -83,6 +89,17 @@ impl TargetConnector for DirectConnector {
         });
 
         Ok(())
+    }
+
+    unsafe fn new(target: &[u8]) -> Result<Self> {
+        Ok(Self {
+            target: parse_target(target)?,
+            stream: None,
+        })
+    }
+
+    fn target(&self) -> &Socks5Target {
+        &self.target
     }
 
     fn take_stream(&mut self) -> Option<Self::Stream> {

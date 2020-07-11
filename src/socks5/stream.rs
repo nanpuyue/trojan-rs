@@ -45,15 +45,6 @@ impl Socks5Stream {
         Ok(())
     }
 
-    pub(super) unsafe fn parse_target(&self) -> Result<Socks5Target> {
-        Ok(match self.target[0] {
-            1 => Socks5Target::parse_ipv4(&self.target[1..]),
-            4 => Socks5Target::parse_ipv6(&self.target[1..]),
-            3 => Socks5Target::try_parse_domain(&self.target[1..])?,
-            _ => unreachable!(),
-        })
-    }
-
     pub(super) async fn handle_command(mut self) -> Result<()> {
         let mut n;
         let mut len = 0;
@@ -94,13 +85,9 @@ impl Socks5Stream {
         self.handle_connect::<DirectConnector>().await
     }
 
-    pub(super) async fn handle_connect<C: TargetConnector + From<Socks5Target>>(
-        mut self,
-    ) -> Result<()> {
-        let target = unsafe { self.parse_target()? };
-        eprintln!("connect {}...", target);
-
-        let connector = &mut C::from(target);
+    pub(super) async fn handle_connect<C: TargetConnector>(mut self) -> Result<()> {
+        let mut connector = unsafe { C::new(&self.target) }?;
+        eprintln!("connect {}...", &connector.target());
         match connector.connect().await {
             Ok(_) => {
                 self.stream
