@@ -82,7 +82,8 @@ impl Socks5Stream {
 
         self.target = self.buf.split_off(3);
 
-        self.handle_connect::<DirectConnector>().await
+        self.handle_connect::<TrojanConnector<(&'_ str, u16)>>()
+            .await
     }
 
     pub(super) async fn handle_connect<C: TargetConnector>(mut self) -> Result<()> {

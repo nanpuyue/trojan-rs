@@ -1,6 +1,10 @@
+use std::mem::MaybeUninit;
+
 use serde::{Deserialize, Serialize};
 
 pub use self::ssl::Config as SslConfig;
+
+pub static mut CONFIG: MaybeUninit<Config> = MaybeUninit::uninit();
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {

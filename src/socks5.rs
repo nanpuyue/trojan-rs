@@ -7,12 +7,13 @@ use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio::stream::StreamExt;
 
 use crate::error::Result;
+use crate::trojan::TrojanConnector;
 use crate::util::link_stream;
 
 pub use self::{
     listener::Socks5Listener,
     stream::Socks5Stream,
-    target::{DirectConnector, Socks5Target, TargetConnector},
+    target::{parse_target, DirectConnector, Socks5Target, TargetConnector},
 };
 
 mod listener;

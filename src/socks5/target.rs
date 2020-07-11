@@ -1,6 +1,6 @@
 use super::*;
 
-unsafe fn parse_target(data: &[u8]) -> Result<Socks5Target> {
+pub unsafe fn parse_target(data: &[u8]) -> Result<Socks5Target> {
     Ok(match data[0] {
         1 => Socks5Target::parse_ipv4(&data[1..]),
         4 => Socks5Target::parse_ipv6(&data[1..]),
