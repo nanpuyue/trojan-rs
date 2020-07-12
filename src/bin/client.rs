@@ -3,6 +3,7 @@
 
 use std::path::Path;
 
+use clap::{App, Arg};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use trojan::config::{Config, CONFIG};
@@ -22,7 +23,23 @@ async unsafe fn set_config<P: AsRef<Path>>(path: P) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    unsafe { set_config("client.json").await? };
+    let matches = App::new("trojan-rs")
+        .version("0.1.0")
+        .author("南浦月 <nanpuyue@gmail.com>")
+        .about("Rust implementation of the trojan protocol")
+        .arg(
+            Arg::with_name("config")
+                .short("c")
+                .long("config")
+                .value_name("CONFIG")
+                .help("Specify the config file")
+                .takes_value(true)
+                .required(true),
+        )
+        .get_matches();
+
+    let config_path = matches.value_of("config").unwrap();
+    unsafe { set_config(config_path).await? };
 
     let local = unsafe {
         let addr = CONFIG.get_ref().local_addr.as_ref();
