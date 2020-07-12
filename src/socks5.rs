@@ -13,7 +13,7 @@ use crate::util::link_stream;
 pub use self::{
     listener::Socks5Listener,
     stream::Socks5Stream,
-    target::{parse_target, DirectConnector, Socks5Target, TargetConnector},
+    target::{DirectConnector, Socks5Target, TargetConnector},
 };
 
 mod listener;

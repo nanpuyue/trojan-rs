@@ -8,7 +8,7 @@ use tokio_native_tls::{TlsConnector, TlsStream};
 
 use crate::config::CONFIG;
 use crate::error::Result;
-use crate::socks5::{parse_target, Socks5Target, TargetConnector};
+use crate::socks5::{Socks5Target, TargetConnector};
 use crate::util::ToHex;
 
 pub struct TrojanConnector<A: ToSocketAddrs> {
@@ -79,7 +79,7 @@ impl TargetConnector for TrojanConnector<(&'_ str, u16)> {
         Ok(Self {
             remote,
             domain: CONFIG.get_ref().ssl.client().sni.to_owned(),
-            target: parse_target(target)?,
+            target: Socks5Target::try_parse(target)?,
             stream: None,
             request: Self::trojan_request(1, target),
         })
