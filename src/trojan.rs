@@ -1,3 +1,5 @@
+use std::sync::Once;
+
 use async_trait::async_trait;
 use sha2::{Digest, Sha224};
 use tokio::io::AsyncWriteExt;
@@ -9,34 +11,34 @@ use crate::error::Result;
 use crate::socks5::{parse_target, Socks5Target, TargetConnector};
 use crate::util::ToHex;
 
-pub struct TrojanRequest<'a> {
-    pub password: &'a str,
-    pub command: u8,
-    pub target: &'a [u8],
-}
-
-impl TrojanRequest<'_> {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut sha224 = Sha224::new();
-        let mut buf = Vec::new();
-
-        sha224.update(self.password);
-        buf.append(&mut sha224.finalize().to_hex().into());
-        buf.extend_from_slice("\r\n".as_ref());
-        buf.push(self.command);
-        buf.extend_from_slice(self.target);
-        buf.extend_from_slice("\r\n".as_ref());
-
-        buf
-    }
-}
-
 pub struct TrojanConnector<A: ToSocketAddrs> {
     remote: A,
     domain: String,
     target: Socks5Target,
     stream: Option<TlsStream<TcpStream>>,
     request: Vec<u8>,
+}
+
+impl<A: ToSocketAddrs> TrojanConnector<A> {
+    fn trojan_request(command: u8, target: &[u8]) -> Vec<u8> {
+        static mut PASSWORD_HASH: Vec<u8> = Vec::new();
+        static HASH_PASSWORD: Once = Once::new();
+        HASH_PASSWORD.call_once(|| unsafe {
+            let password = &CONFIG.get_ref().password[0];
+            let mut sha224 = Sha224::new();
+            sha224.update(password);
+            PASSWORD_HASH = sha224.finalize().to_hex().into();
+        });
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(unsafe { &PASSWORD_HASH });
+        buf.extend_from_slice("\r\n".as_ref());
+        buf.push(command);
+        buf.extend_from_slice(target);
+        buf.extend_from_slice("\r\n".as_ref());
+
+        buf
+    }
 }
 
 #[async_trait]
@@ -70,12 +72,6 @@ impl TargetConnector for TrojanConnector<(&'_ str, u16)> {
     where
         Self: Sized,
     {
-        let request = TrojanRequest {
-            password: &CONFIG.get_ref().password.get(0).unwrap(),
-            command: 1,
-            target: &target,
-        };
-
         let addr = CONFIG.get_ref().remote_addr.as_ref();
         let port = CONFIG.get_ref().remote_port;
         let remote = (addr, port);
@@ -85,7 +81,7 @@ impl TargetConnector for TrojanConnector<(&'_ str, u16)> {
             domain: CONFIG.get_ref().ssl.client().sni.to_owned(),
             target: parse_target(target)?,
             stream: None,
-            request: request.to_bytes(),
+            request: Self::trojan_request(1, target),
         })
     }
 
