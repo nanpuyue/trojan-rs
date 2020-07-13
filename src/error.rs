@@ -1,4 +1,5 @@
 use std::fmt::{self, Display, Formatter};
+use std::option::NoneError;
 use std::{error, io, result};
 
 pub type Result<T> = result::Result<T, Error>;
@@ -35,6 +36,12 @@ impl Into<Error> for String {
 impl Into<Error> for &str {
     fn into(self) -> Error {
         Error::String(self.to_owned())
+    }
+}
+
+impl From<NoneError> for Error {
+    fn from(_: NoneError) -> Self {
+        Error::String("NoneError".to_owned())
     }
 }
 

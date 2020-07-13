@@ -6,9 +6,12 @@ use std::path::Path;
 use clap::{App, Arg};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
+use tokio::stream::StreamExt;
+
 use trojan::config::{Config, CONFIG};
 use trojan::error::Result;
 use trojan::socks5::Socks5Listener;
+use trojan::trojan::TrojanConnector;
 
 async unsafe fn set_config<P: AsRef<Path>>(path: P) -> Result<()> {
     let mut file = File::open(path).await?;
@@ -46,6 +49,18 @@ async fn main() -> Result<()> {
         let port = CONFIG.get_ref().local_port;
         (addr, port)
     };
-    let mut socks5_proxy = Socks5Listener::listen(local).await?;
-    socks5_proxy.handle_incoming().await
+    let mut listener = Socks5Listener::listen(local).await?;
+
+    while let Some((acceptor, client)) = listener.next().await.transpose()? {
+        tokio::spawn(async move {
+            if let Err(e) = acceptor
+                .connect_target::<TrojanConnector<(&str, u16)>>()
+                .await
+            {
+                eprintln!("{} => {}", client, e)
+            }
+        });
+    }
+
+    Ok(())
 }

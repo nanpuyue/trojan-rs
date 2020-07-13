@@ -1,21 +1,12 @@
 use super::*;
 
-pub struct Socks5Stream {
+pub struct Socks5Acceptor {
     stream: TcpStream,
     buf: Vec<u8>,
-    target: Vec<u8>,
 }
 
-impl Socks5Stream {
-    pub(super) fn new(stream: TcpStream) -> Self {
-        Socks5Stream {
-            stream,
-            buf: Vec::with_capacity(512),
-            target: Vec::new(),
-        }
-    }
-
-    pub(super) async fn authenticate(&mut self) -> Result<()> {
+impl Socks5Acceptor {
+    pub async fn authenticate(&mut self) -> Result<()> {
         let mut n;
         let mut len = 0;
 
@@ -45,7 +36,7 @@ impl Socks5Stream {
         Ok(())
     }
 
-    pub(super) async fn handle_command(mut self) -> Result<()> {
+    pub async fn accept_command(&mut self) -> Result<(u8, &[u8])> {
         let mut n;
         let mut len = 0;
 
@@ -80,29 +71,54 @@ impl Socks5Stream {
             return Err("Unsupported Request Command!".into());
         }
 
-        self.target = self.buf.split_off(3);
-
-        self.handle_connect::<TrojanConnector<(&'_ str, u16)>>()
-            .await
+        Ok((self.buf[1], &self.buf[3..]))
     }
 
-    pub(super) async fn handle_connect<C: TargetConnector>(mut self) -> Result<()> {
-        let mut connector = unsafe { C::new(&self.target) }?;
-        eprintln!("connect {}...", &connector.target());
+    pub async fn connect_target<C: TargetConnector>(mut self) -> Result<()> {
+        self.authenticate().await?;
+        let (command, target) = self.accept_command().await?;
+        debug_assert_eq!(command, 1);
+
+        let mut connector = C::from(target)?;
+        eprintln!("{} -> {}", self.peer_addr(), connector.target());
         match connector.connect().await {
             Ok(_) => {
-                self.stream
-                    .write_all(b"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00")
-                    .await?;
-                connector.send_request().await?;
-                link_stream(self.stream, connector.take_stream().unwrap()).await
+                let stream = self.connected().await?;
+                let upstream = connector.connected()?;
+                link_stream(stream, upstream).await?;
+                Ok(())
             }
             Err(e) => {
-                self.stream
-                    .write_all(&[b"\x05\x01\x00", &self.buf[3..]].concat())
-                    .await?;
+                self.closed().await?;
                 Err(e)
             }
+        }
+    }
+
+    pub async fn connected(mut self) -> Result<Socks5Stream> {
+        self.stream
+            .write_all(b"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00")
+            .await?;
+        Ok(self.stream)
+    }
+
+    pub async fn closed(mut self) -> Result<()> {
+        self.stream
+            .write_all(&[b"\x05\x01\x00", &self.buf[3..]].concat())
+            .await?;
+        Ok(())
+    }
+
+    pub fn peer_addr(&self) -> SocketAddr {
+        self.stream.peer_addr().unwrap()
+    }
+}
+
+impl From<TcpStream> for Socks5Acceptor {
+    fn from(stream: TcpStream) -> Self {
+        Self {
+            stream,
+            buf: Vec::with_capacity(512),
         }
     }
 }

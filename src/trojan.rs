@@ -54,42 +54,37 @@ impl TargetConnector for TrojanConnector<(&'_ str, u16)> {
         );
 
         let tcpstream = TcpStream::connect(&self.remote).await?;
-        self.stream = Some(tls_connector.connect(&self.domain, tcpstream).await?);
+        let mut stream = tls_connector.connect(&self.domain, tcpstream).await?;
+        stream.write_all(&self.request).await?;
+        self.stream = Some(stream);
 
         Ok(())
     }
 
-    async fn send_request(&mut self) -> Result<()> {
-        self.stream
-            .as_mut()
-            .unwrap()
-            .write_all(&self.request)
-            .await?;
-        Ok(())
+    fn connected(mut self) -> Result<Self::Stream> {
+        Ok(self.stream.take()?)
     }
 
-    unsafe fn new(target: &[u8]) -> Result<Self>
+    fn from(target: &[u8]) -> Result<Self>
     where
         Self: Sized,
     {
-        let addr = CONFIG.get_ref().remote_addr.as_ref();
-        let port = CONFIG.get_ref().remote_port;
-        let remote = (addr, port);
+        unsafe {
+            let addr = CONFIG.get_ref().remote_addr.as_ref();
+            let port = CONFIG.get_ref().remote_port;
+            let remote = (addr, port);
 
-        Ok(Self {
-            remote,
-            domain: CONFIG.get_ref().ssl.client().sni.to_owned(),
-            target: Socks5Target::try_parse(target)?,
-            stream: None,
-            request: Self::trojan_request(1, target),
-        })
+            Ok(Self {
+                remote,
+                domain: CONFIG.get_ref().ssl.client().sni.to_owned(),
+                target: Socks5Target::try_parse(target)?,
+                stream: None,
+                request: Self::trojan_request(1, target),
+            })
+        }
     }
 
     fn target(&self) -> &Socks5Target {
         &self.target
-    }
-
-    fn take_stream(&mut self) -> Option<Self::Stream> {
-        self.stream.take()
     }
 }

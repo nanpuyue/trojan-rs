@@ -56,28 +56,24 @@ impl Socks5Target {
     }
 }
 
-pub struct DirectConnector {
-    target: Socks5Target,
-    stream: Option<TcpStream>,
-}
-
 #[async_trait]
 pub trait TargetConnector: Send {
     type Stream: AsyncRead + AsyncWrite;
 
     async fn connect(&mut self) -> Result<()>;
 
-    async fn send_request(&mut self) -> Result<()> {
-        Ok(())
-    }
+    fn connected(self) -> Result<Self::Stream>;
 
-    unsafe fn new(target: &[u8]) -> Result<Self>
+    fn from(target: &[u8]) -> Result<Self>
     where
         Self: Sized;
 
     fn target(&self) -> &Socks5Target;
+}
 
-    fn take_stream(&mut self) -> Option<Self::Stream>;
+pub struct DirectConnector {
+    target: Socks5Target,
+    stream: Option<TcpStream>,
 }
 
 #[async_trait]
@@ -90,11 +86,14 @@ impl TargetConnector for DirectConnector {
             Socks5Target::V6(s) => TcpStream::connect(s).await?,
             Socks5Target::Domain(s) => TcpStream::connect(s).await?,
         });
-
         Ok(())
     }
 
-    unsafe fn new(target: &[u8]) -> Result<Self> {
+    fn connected(mut self) -> Result<Self::Stream> {
+        Ok(self.stream.take()?)
+    }
+
+    fn from(target: &[u8]) -> Result<Self> {
         Ok(Self {
             target: Socks5Target::try_parse(target)?,
             stream: None,
@@ -103,9 +102,5 @@ impl TargetConnector for DirectConnector {
 
     fn target(&self) -> &Socks5Target {
         &self.target
-    }
-
-    fn take_stream(&mut self) -> Option<Self::Stream> {
-        self.stream.take()
     }
 }

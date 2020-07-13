@@ -1,3 +1,4 @@
+#![feature(try_trait)]
 #![feature(maybe_uninit_ref)]
 
 pub mod config;
