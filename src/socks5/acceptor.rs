@@ -7,25 +7,15 @@ pub struct Socks5Acceptor {
 
 impl Socks5Acceptor {
     pub async fn authenticate(&mut self) -> Result<()> {
-        let mut n;
-        let mut len = 0;
+        self.buf.resize(2, 0);
+        self.stream.read_exact(&mut self.buf).await?;
 
-        self.buf.clear();
-        while {
-            n = self.stream.read_buf(&mut self.buf).await?;
-            n > 0
-        } {
-            if self.buf.len() >= 2 {
-                len = 2 + self.buf[1] as usize;
-            }
+        if self.buf[0] != 5 {
+            return Err("Not Socks5 Request!".into());
+        }
 
-            if len > 0 && self.buf.len() >= len {
-                break;
-            }
-        }
-        if len == 0 || self.buf.len() != len || self.buf[0] != 5 {
-            return Err("Invalid Request!".into());
-        }
+        self.buf.resize(2 + self.buf[1] as usize, 0);
+        self.stream.read_exact(&mut self.buf[2..]).await?;
 
         if !self.buf[2..].contains(&0) {
             self.stream.write_all(b"\x05\xff").await?;
@@ -37,34 +27,24 @@ impl Socks5Acceptor {
     }
 
     pub async fn accept_command(&mut self) -> Result<(u8, &[u8])> {
-        let mut n;
-        let mut len = 0;
+        self.buf.resize(5, 0);
+        self.stream.read_exact(&mut self.buf).await?;
 
-        self.buf.clear();
-        while {
-            n = self.stream.read_buf(&mut self.buf).await?;
-            n > 0
-        } {
-            if len == 0 && self.buf.len() >= 5 {
-                len = match self.buf[3] {
-                    1 => 10,
-                    4 => 22,
-                    3 => 7 + self.buf[4] as usize,
-                    _ => {
-                        self.stream.write_all(b"\x05\x08").await?;
-                        return Err("Invalid Address Type!".into());
-                    }
-                };
-            }
-
-            if len > 0 && self.buf.len() >= len {
-                break;
-            }
-        }
-
-        if len == 0 || self.buf.len() != len || self.buf[0] != 5 || self.buf[2] != 0 {
+        if self.buf[0] != 5 || self.buf[2] != 0 {
             return Err("Invalid Request!".into());
         }
+
+        let len = match self.buf[3] {
+            1 => 10,
+            4 => 22,
+            3 => 7 + self.buf[4] as usize,
+            _ => {
+                self.stream.write_all(b"\x05\x08").await?;
+                return Err("Invalid Address Type!".into());
+            }
+        };
+        self.buf.resize(len, 0);
+        self.stream.read_exact(&mut self.buf[5..]).await?;
 
         if self.buf[1] != 1 {
             self.stream.write_all(b"\x05\x07").await?;
@@ -118,7 +98,7 @@ impl From<TcpStream> for Socks5Acceptor {
     fn from(stream: TcpStream) -> Self {
         Self {
             stream,
-            buf: Vec::with_capacity(512),
+            buf: Vec::with_capacity(64),
         }
     }
 }
