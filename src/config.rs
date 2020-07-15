@@ -1,10 +1,27 @@
+use std::fs::File;
+use std::io::Read;
 use std::mem::MaybeUninit;
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+
+use crate::error::Result;
 
 pub use self::ssl::Config as SslConfig;
 
 pub static mut CONFIG: MaybeUninit<Config> = MaybeUninit::uninit();
+
+#[allow(clippy::missing_safety_doc)]
+pub unsafe fn set_config<P: AsRef<Path>>(path: P) -> Result<()> {
+    let mut file = File::open(path)?;
+    let json = &mut String::new();
+    file.read_to_string(json)?;
+
+    let config = serde_json::from_str::<Config>(json)?;
+    CONFIG.write(config);
+
+    Ok(())
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
