@@ -13,15 +13,15 @@ use crate::util::ToHex;
 
 type TlsStream = <TlsConnector as TrojanTlsConnector>::Stream;
 
-pub struct TrojanConnector<A: ToSocketAddrs> {
+pub struct TrojanConnector<'a, A: ToSocketAddrs> {
     remote: A,
-    domain: String,
+    domain: &'a str,
     target: Socks5Target,
     stream: Option<TlsStream>,
     request: Vec<u8>,
 }
 
-impl<A: ToSocketAddrs> TrojanConnector<A> {
+impl<A: ToSocketAddrs> TrojanConnector<'_, A> {
     fn trojan_request(command: u8, target: &[u8]) -> Vec<u8> {
         static mut PASSWORD_HASH: Vec<u8> = Vec::new();
         static HASH_PASSWORD: Once = Once::new();
@@ -44,7 +44,7 @@ impl<A: ToSocketAddrs> TrojanConnector<A> {
 }
 
 #[async_trait]
-impl TargetConnector for TrojanConnector<(&'_ str, u16)> {
+impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
     type Stream = TlsStream;
 
     async fn connect(&mut self) -> Result<()> {
@@ -73,9 +73,12 @@ impl TargetConnector for TrojanConnector<(&'_ str, u16)> {
             let port = CONFIG.get_ref().remote_port;
             let remote = (addr, port);
 
+            let sni = CONFIG.get_ref().ssl.client().sni.as_str();
+            let domain = if sni.is_empty() { addr } else { sni };
+
             Ok(Self {
                 remote,
-                domain: CONFIG.get_ref().ssl.client().sni.to_owned(),
+                domain,
                 target: Socks5Target::try_parse(target)?,
                 stream: None,
                 request: Self::trojan_request(1, target),

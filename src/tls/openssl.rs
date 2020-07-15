@@ -14,6 +14,7 @@ mod verify;
 
 pub struct TlsConnector {
     connector: SslConnector,
+    sni: bool,
     verify_hostname: bool,
 }
 
@@ -33,6 +34,7 @@ pub unsafe fn set_tls_connector() -> Result<()> {
 
     TLS_CONNECTOR.write(TlsConnector {
         connector: builder.build(),
+        sni: !ssl_config.sni.is_empty(),
         verify_hostname: ssl_config.verify_hostname,
     });
 
@@ -53,6 +55,7 @@ impl super::TrojanTlsConnector for TlsConnector {
             .ssl
             .param_mut()
             .set_flags(X509_V_FLAG_PARTIAL_CHAIN);
+        pub_config.sni = self.sni;
         pub_config.verify_hostname = self.verify_hostname;
 
         let tcpstream = TcpStream::connect(addr).await?;
