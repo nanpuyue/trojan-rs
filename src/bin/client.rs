@@ -11,6 +11,7 @@ use tokio::stream::StreamExt;
 use trojan::config::{Config, CONFIG};
 use trojan::error::Result;
 use trojan::socks5::Socks5Listener;
+use trojan::tls::set_tls_connector;
 use trojan::trojan::TrojanConnector;
 
 async unsafe fn set_config<P: AsRef<Path>>(path: P) -> Result<()> {
@@ -42,7 +43,10 @@ async fn main() -> Result<()> {
         .get_matches();
 
     let config_path = matches.value_of("config").unwrap();
-    unsafe { set_config(config_path).await? };
+    unsafe {
+        set_config(config_path).await?;
+        set_tls_connector()?;
+    }
 
     let local = unsafe {
         let addr = CONFIG.get_ref().local_addr.as_ref();

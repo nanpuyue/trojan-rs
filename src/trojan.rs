@@ -3,19 +3,21 @@ use std::sync::Once;
 use async_trait::async_trait;
 use sha2::{Digest, Sha224};
 use tokio::io::AsyncWriteExt;
-use tokio::net::{TcpStream, ToSocketAddrs};
-use tokio_native_tls::{TlsConnector, TlsStream};
+use tokio::net::ToSocketAddrs;
 
 use crate::config::CONFIG;
 use crate::error::Result;
 use crate::socks5::{Socks5Target, TargetConnector};
+use crate::tls::{TlsConnector, TrojanTlsConnector, TLS_CONNECTOR};
 use crate::util::ToHex;
+
+type TlsStream = <TlsConnector as TrojanTlsConnector>::Stream;
 
 pub struct TrojanConnector<A: ToSocketAddrs> {
     remote: A,
     domain: String,
     target: Socks5Target,
-    stream: Option<TlsStream<TcpStream>>,
+    stream: Option<TlsStream>,
     request: Vec<u8>,
 }
 
@@ -43,18 +45,15 @@ impl<A: ToSocketAddrs> TrojanConnector<A> {
 
 #[async_trait]
 impl TargetConnector for TrojanConnector<(&'_ str, u16)> {
-    type Stream = TlsStream<TcpStream>;
+    type Stream = TlsStream;
 
     async fn connect(&mut self) -> Result<()> {
-        let tls_connector = TlsConnector::from(
-            native_tls::TlsConnector::builder()
-                // FIXME
-                .danger_accept_invalid_certs(true)
-                .build()?,
-        );
-
-        let tcpstream = TcpStream::connect(&self.remote).await?;
-        let mut stream = tls_connector.connect(&self.domain, tcpstream).await?;
+        let mut stream = unsafe {
+            TLS_CONNECTOR
+                .get_ref()
+                .connect(&self.remote, &self.domain)
+                .await?
+        };
         stream.write_all(&self.request).await?;
         self.stream = Some(stream);
 
