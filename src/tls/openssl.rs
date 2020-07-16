@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+use openssl::ssl::{SslConnector, SslMethod, SslOptions, SslSessionCacheMode, SslVerifyMode};
 use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio_openssl::{connect, SslStream};
 
@@ -29,8 +29,40 @@ pub unsafe fn set_tls_connector() -> Result<()> {
     };
 
     if !ssl_config.cert.is_empty() {
-        builder.set_ca_file(&ssl_config.cert)?
+        builder.set_ca_file(&ssl_config.cert)?;
     }
+
+    if !ssl_config.cipher.is_empty() {
+        builder.set_cipher_list(&ssl_config.cipher)?;
+    }
+
+    if !ssl_config.cipher_tls13.is_empty() {
+        builder.set_ciphersuites(&ssl_config.cipher_tls13)?;
+    }
+
+    if !ssl_config.alpn.is_empty() {
+        let mut alpn_protos = Vec::new();
+        for alpn in &ssl_config.alpn {
+            if !alpn.is_empty() {
+                alpn_protos.push(alpn.len() as u8);
+                alpn_protos.extend_from_slice(alpn.as_bytes());
+            }
+        }
+
+        if !alpn_protos.is_empty() {
+            builder.set_alpn_protos(&alpn_protos)?;
+        }
+    }
+
+    if !ssl_config.reuse_session {
+        builder.set_session_cache_mode(SslSessionCacheMode::OFF);
+    }
+
+    if !ssl_config.session_ticket {
+        builder.set_options(SslOptions::NO_TICKET);
+    }
+
+    // TODO: set curves list
 
     TLS_CONNECTOR.write(TlsConnector {
         connector: builder.build(),
