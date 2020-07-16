@@ -1,7 +1,6 @@
 use std::sync::Once;
 
 use async_trait::async_trait;
-use sha2::{Digest, Sha224};
 use tokio::io::AsyncWriteExt;
 use tokio::net::ToSocketAddrs;
 
@@ -9,7 +8,7 @@ use crate::config::CONFIG;
 use crate::error::Result;
 use crate::socks5::{Socks5Target, TargetConnector};
 use crate::tls::{TlsConnector, TrojanTlsConnector, TLS_CONNECTOR};
-use crate::util::ToHex;
+use crate::util::{sha224, ToHex};
 
 type TlsStream = <TlsConnector as TrojanTlsConnector>::Stream;
 
@@ -26,10 +25,8 @@ impl<A: ToSocketAddrs> TrojanConnector<'_, A> {
         static mut PASSWORD_HASH: Vec<u8> = Vec::new();
         static HASH_PASSWORD: Once = Once::new();
         HASH_PASSWORD.call_once(|| unsafe {
-            let password = &CONFIG.get_ref().password[0];
-            let mut sha224 = Sha224::new();
-            sha224.update(password);
-            PASSWORD_HASH = sha224.finalize().to_hex().into();
+            let password = CONFIG.get_ref().password[0].as_bytes();
+            PASSWORD_HASH = sha224(password).to_hex().into();
         });
 
         let mut buf = Vec::new();

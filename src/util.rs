@@ -2,6 +2,10 @@ use tokio::io::{self, AsyncRead, AsyncWrite};
 
 use crate::error::Result;
 
+pub fn sha224(data: &[u8]) -> [u8; 28] {
+    openssl::sha::sha224(data)
+}
+
 pub trait ToHex {
     fn to_hex(&self) -> String;
 }
