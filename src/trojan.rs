@@ -70,7 +70,7 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
             let port = CONFIG.get_ref().remote_port;
             let remote = (addr, port);
 
-            let sni = CONFIG.get_ref().ssl.client().sni.as_str();
+            let sni = CONFIG.get_ref().ssl.client()?.sni.as_str();
             let domain = if sni.is_empty() { addr } else { sni };
 
             Ok(Self {

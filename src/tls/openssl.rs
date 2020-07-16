@@ -20,7 +20,7 @@ pub struct TlsConnector {
 
 #[allow(clippy::missing_safety_doc)]
 pub unsafe fn set_tls_connector() -> Result<()> {
-    let ssl_config = CONFIG.get_ref().ssl.client();
+    let ssl_config = CONFIG.get_ref().ssl.client()?;
 
     let mut builder = SslConnector::builder(SslMethod::tls_client())?;
 

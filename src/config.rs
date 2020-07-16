@@ -113,17 +113,17 @@ mod ssl {
     }
 
     impl Config {
-        pub fn client(&self) -> &Client {
+        pub fn client(&self) -> Result<&Client> {
             match self {
-                Self::Client(c) => c,
-                _ => panic!(),
+                Self::Client(c) => Ok(c),
+                _ => Err("Not a client configuration!".into()),
             }
         }
 
-        pub fn server(&self) -> &Server {
+        pub fn server(&self) -> Result<&Server> {
             match self {
-                Self::Server(s) => s,
-                _ => panic!(),
+                Self::Server(s) => Ok(s),
+                _ => Err("Not a server configuration!".into()),
             }
         }
     }
