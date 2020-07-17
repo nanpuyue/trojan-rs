@@ -61,7 +61,7 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
         Ok(self.stream.take()?)
     }
 
-    fn from(target: &[u8]) -> Result<Self>
+    fn from(command: u8, target: &[u8]) -> Result<Self>
     where
         Self: Sized,
     {
@@ -78,7 +78,7 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
                 domain,
                 target: Socks5Target::try_parse(target)?,
                 stream: None,
-                request: Self::trojan_request(1, target),
+                request: Self::trojan_request(command, target),
             })
         }
     }

@@ -46,6 +46,16 @@ impl Socks5Target {
         Ok(Self::Domain(domain + ":" + &port))
     }
 
+    pub fn target_len(data: &[u8]) -> Result<usize> {
+        debug_assert!(data.len() >= 2);
+        Ok(match data[0] {
+            1 => 7,
+            4 => 19,
+            3 => 4 + data[1] as usize,
+            _ => return Err("Invalid Address Type!".into()),
+        })
+    }
+
     pub fn try_parse(data: &[u8]) -> Result<Socks5Target> {
         Ok(match data[0] {
             1 => Self::parse_ipv4(&data[1..]),
@@ -64,7 +74,7 @@ pub trait TargetConnector: Send {
 
     fn connected(self) -> Result<Self::Stream>;
 
-    fn from(target: &[u8]) -> Result<Self>
+    fn from(command: u8, target: &[u8]) -> Result<Self>
     where
         Self: Sized;
 
@@ -93,7 +103,7 @@ impl TargetConnector for DirectConnector {
         Ok(self.stream.take()?)
     }
 
-    fn from(target: &[u8]) -> Result<Self> {
+    fn from(_: u8, target: &[u8]) -> Result<Self> {
         Ok(Self {
             target: Socks5Target::try_parse(target)?,
             stream: None,

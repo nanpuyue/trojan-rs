@@ -1,8 +1,8 @@
 use super::*;
 
 pub struct Socks5Acceptor {
-    stream: TcpStream,
-    buf: Vec<u8>,
+    pub(super) stream: TcpStream,
+    pub(super) buf: Vec<u8>,
 }
 
 impl Socks5Acceptor {
@@ -34,19 +34,18 @@ impl Socks5Acceptor {
             return Err("Invalid Request!".into());
         }
 
-        let len = match self.buf[3] {
-            1 => 10,
-            4 => 22,
-            3 => 7 + self.buf[4] as usize,
-            _ => {
+        let len = match Socks5Target::target_len(&self.buf[3..]) {
+            Ok(x) => x + 3,
+            Err(e) => {
                 self.stream.write_all(b"\x05\x08").await?;
-                return Err("Invalid Address Type!".into());
+                return Err(e);
             }
         };
+
         self.buf.resize(len, 0);
         self.stream.read_exact(&mut self.buf[5..]).await?;
 
-        if self.buf[1] != 1 {
+        if self.buf[1] != 1 && self.buf[1] != 3 {
             self.stream.write_all(b"\x05\x07").await?;
             return Err("Unsupported Request Command!".into());
         }
@@ -57,9 +56,13 @@ impl Socks5Acceptor {
     pub async fn connect_target<C: TargetConnector>(mut self) -> Result<()> {
         self.authenticate().await?;
         let (command, target) = self.accept_command().await?;
-        debug_assert_eq!(command, 1);
 
-        let mut connector = C::from(target)?;
+        if command == 3 {
+            return self.associate_udp().await;
+        }
+
+        debug_assert_eq!(command, 1);
+        let mut connector = C::from(command, target)?;
         eprintln!("{} -> {}", self.peer_addr(), connector.target());
         match connector.connect().await {
             Ok(_) => {
