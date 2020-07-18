@@ -1,12 +1,12 @@
 use std::sync::Once;
 
 use async_trait::async_trait;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{split, AsyncReadExt, AsyncWriteExt};
 use tokio::net::ToSocketAddrs;
 
 use crate::config::CONFIG;
 use crate::error::Result;
-use crate::socks5::{Socks5Target, TargetConnector};
+use crate::socks5::{Socks5Target, Socks5UdpClient, TargetConnector};
 use crate::tls::{TlsConnector, TrojanTlsConnector, TLS_CONNECTOR};
 use crate::util::{sha224, ToHex};
 
@@ -59,6 +59,58 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
 
     fn connected(mut self) -> Result<Self::Stream> {
         Ok(self.stream.take()?)
+    }
+
+    async fn forward_udp(client: Socks5UdpClient, upstream: Self::Stream) -> Result<()> {
+        let client_addr = client.client_addr();
+
+        let (client_receiver, client_sender) = &mut client.connect().await?.split();
+        let (upstream_receiver, upstream_sender) = &mut split(upstream);
+
+        let t1 = async {
+            let mut buf = vec![0; 1472];
+            loop {
+                let udp_len = client_receiver.recv(&mut buf[1..]).await?;
+                let offset = Socks5Target::target_len(&buf[4..])?;
+                eprintln!(
+                    "{} -> {} (udp)",
+                    client_addr,
+                    Socks5Target::try_parse(&buf[4..4 + offset])?
+                );
+                buf.copy_within(4..4 + offset, 0);
+                buf[offset..offset + 2]
+                    .copy_from_slice(((udp_len - offset - 3) as u16).to_be_bytes().as_ref());
+                buf[offset + 2..offset + 4].copy_from_slice(b"\r\n");
+                upstream_sender.write_all(&buf[..udp_len + 1]).await?;
+            }
+        };
+
+        let t2 = async {
+            let mut buf = Vec::new();
+            loop {
+                buf.resize(2, 0);
+                upstream_receiver.read_exact(&mut buf).await?;
+                let offset = Socks5Target::target_len(&buf)?;
+                buf.resize(offset + 4, 0);
+                upstream_receiver.read_exact(&mut buf[2..]).await?;
+
+                let length = u16::from_be_bytes([buf[offset], buf[offset + 1]]);
+                buf.resize(offset + 4 + length as usize, 0);
+                upstream_receiver.read_exact(&mut buf[offset + 4..]).await?;
+                buf.copy_within(0..offset, 4);
+                buf[1..4].fill(0);
+                client_sender.send(&buf[1..]).await?;
+            }
+        };
+
+        tokio::select! {
+            r1 = t1 => {
+                r1
+            },
+            r2 = t2 => {
+                r2
+            },
+        }
     }
 
     fn from(command: u8, target: &[u8]) -> Result<Self>

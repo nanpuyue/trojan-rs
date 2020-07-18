@@ -15,6 +15,7 @@ pub use self::{
     acceptor::Socks5Acceptor,
     listener::Socks5Listener,
     target::{DirectConnector, Socks5Target, TargetConnector},
+    udp::Socks5UdpClient,
 };
 
 pub type Socks5Stream = TcpStream;

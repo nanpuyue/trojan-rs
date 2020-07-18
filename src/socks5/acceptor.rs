@@ -58,7 +58,7 @@ impl Socks5Acceptor {
         let (command, target) = self.accept_command().await?;
 
         if command == 3 {
-            return self.associate_udp().await;
+            return self.associate_udp::<C>().await;
         }
 
         debug_assert_eq!(command, 1);

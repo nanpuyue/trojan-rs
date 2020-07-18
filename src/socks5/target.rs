@@ -74,6 +74,8 @@ pub trait TargetConnector: Send {
 
     fn connected(self) -> Result<Self::Stream>;
 
+    async fn forward_udp(client: Socks5UdpClient, upstream: Self::Stream) -> Result<()>;
+
     fn from(command: u8, target: &[u8]) -> Result<Self>
     where
         Self: Sized;
@@ -101,6 +103,10 @@ impl TargetConnector for DirectConnector {
 
     fn connected(mut self) -> Result<Self::Stream> {
         Ok(self.stream.take()?)
+    }
+
+    async fn forward_udp(client: Socks5UdpClient, upstream: Self::Stream) -> Result<()> {
+        unimplemented!()
     }
 
     fn from(_: u8, target: &[u8]) -> Result<Self> {
