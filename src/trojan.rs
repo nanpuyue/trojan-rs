@@ -42,7 +42,8 @@ impl<A: ToSocketAddrs> TrojanConnector<'_, A> {
 
 #[async_trait]
 impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
-    type Stream = TlsStream;
+    type Upstream = TlsStream;
+    type UdpUpstream = TlsStream;
 
     async fn connect(&mut self) -> Result<()> {
         let mut stream = unsafe {
@@ -57,11 +58,19 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
         Ok(())
     }
 
-    fn connected(mut self) -> Result<Self::Stream> {
+    fn connected(mut self) -> Result<Self::Upstream> {
         Ok(self.stream.take()?)
     }
 
-    async fn forward_udp(client: Socks5UdpClient, upstream: Self::Stream) -> Result<()> {
+    async fn udp_bind(&mut self) -> Result<()> {
+        self.connect().await
+    }
+
+    fn udp_upstream(self) -> Result<Self::UdpUpstream> {
+        self.connected()
+    }
+
+    async fn forward_udp(client: Socks5UdpClient, upstream: Self::UdpUpstream) -> Result<()> {
         let client_addr = client.client_addr();
 
         let (client_receiver, client_sender) = &mut client.connect().await?.split();

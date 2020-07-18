@@ -1,10 +1,4 @@
-use std::net::SocketAddr;
-
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::UdpSocket;
-
-use crate::error::Result;
-use crate::socks5::{Socks5Acceptor, TargetConnector};
+use super::*;
 
 pub struct Socks5UdpClient {
     udp_socket: UdpSocket,
@@ -57,8 +51,8 @@ impl Socks5Acceptor {
         self.stream.write_all(&reply).await?;
 
         let mut connector = C::from(3, target)?;
-        let upstream = match connector.connect().await {
-            Ok(_) => connector.connected()?,
+        let upstream = match connector.udp_bind().await {
+            Ok(_) => connector.udp_upstream()?,
             Err(e) => {
                 self.closed().await?;
                 return Err(e);
