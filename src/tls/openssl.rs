@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use async_trait::async_trait;
 use openssl::ssl::{SslConnector, SslMethod, SslOptions, SslSessionCacheMode, SslVerifyMode};
 use tokio::net::{TcpStream, ToSocketAddrs};
@@ -16,6 +18,8 @@ pub struct TlsConnector {
     connector: SslConnector,
     sni: bool,
     verify_hostname: bool,
+    tcp_nodelay: bool,
+    tcp_keepalive: bool,
 }
 
 #[allow(clippy::missing_safety_doc)]
@@ -64,10 +68,13 @@ pub unsafe fn set_tls_connector() -> Result<()> {
 
     // TODO: set curves list
 
+    let tcp_config = &CONFIG.get_ref().tcp;
     TLS_CONNECTOR.write(TlsConnector {
         connector: builder.build(),
         sni: !ssl_config.sni.is_empty(),
         verify_hostname: ssl_config.verify_hostname,
+        tcp_nodelay: tcp_config.no_delay,
+        tcp_keepalive: tcp_config.keep_alive,
     });
 
     Ok(())
@@ -91,6 +98,12 @@ impl super::TrojanTlsConnector for TlsConnector {
         pub_config.verify_hostname = self.verify_hostname;
 
         let tcpstream = TcpStream::connect(addr).await?;
+        tcpstream.set_nodelay(self.tcp_nodelay)?;
+        if self.tcp_keepalive {
+            tcpstream.set_keepalive(Some(Duration::from_secs(30)))?;
+        } else {
+            tcpstream.set_keepalive(None)?;
+        }
         let stream = connect(config, domain, tcpstream).await?;
 
         Ok(stream)
