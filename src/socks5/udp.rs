@@ -51,12 +51,9 @@ impl Socks5Acceptor {
         self.stream.write_all(&reply).await?;
 
         let mut connector = C::from(3, target)?;
-        let upstream = match connector.udp_bind().await {
-            Ok(_) => connector.udp_upstream()?,
-            Err(e) => {
-                self.closed().await?;
-                return Err(e);
-            }
+        if let Err(e) = connector.udp_bind().await {
+            self.closed().await?;
+            return Err(e);
         };
 
         let done = async {
@@ -65,7 +62,7 @@ impl Socks5Acceptor {
         };
 
         let udp_client = Socks5UdpClient::new(udp_socket, client_addr);
-        let forward_udp = C::forward_udp(udp_client, upstream);
+        let forward_udp = connector.forward_udp(udp_client);
 
         tokio::select! {
             r1 = done => {

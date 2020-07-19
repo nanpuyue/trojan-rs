@@ -46,19 +46,20 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
     type UdpUpstream = TlsStream;
 
     async fn connect(&mut self) -> Result<()> {
-        let mut stream = unsafe {
+        let stream = unsafe {
             TLS_CONNECTOR
                 .get_ref()
                 .connect(&self.remote, &self.domain)
                 .await?
         };
-        stream.write_all(&self.request).await?;
         self.stream = Some(stream);
 
         Ok(())
     }
 
-    fn connected(mut self) -> Result<Self::Upstream> {
+    async fn connected(mut self, payload: &[u8]) -> Result<Self::Upstream> {
+        self.request.extend_from_slice(payload);
+        self.stream.as_mut()?.write_all(&self.request).await?;
         Ok(self.stream.take()?)
     }
 
@@ -66,20 +67,21 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
         self.connect().await
     }
 
-    fn udp_upstream(self) -> Result<Self::UdpUpstream> {
-        self.connected()
-    }
-
-    async fn forward_udp(client: Socks5UdpClient, upstream: Self::UdpUpstream) -> Result<()> {
+    async fn forward_udp(mut self, client: Socks5UdpClient) -> Result<()> {
         let client_addr = client.client_addr();
+        let upstream = self.stream.take()?;
 
         let (client_receiver, client_sender) = &mut client.connect().await?.split();
         let (upstream_receiver, upstream_sender) = &mut split(upstream);
 
         let t1 = async {
             let mut buf = vec![0; 1472];
-            loop {
-                let udp_len = client_receiver.recv(&mut buf[1..]).await?;
+            let mut len = client_receiver.recv(&mut buf[1..]).await?;
+
+            let into_trojan_packet = |mut buf: Vec<u8>, len: usize| -> Result<_> {
+                if &buf[1..4] != b"\0\0\0" {
+                    return Err("Invalid socks5 udp request!".into());
+                }
                 let offset = Socks5Target::target_len(&buf[4..])?;
                 eprintln!(
                     "{} -> {} (udp)",
@@ -88,9 +90,19 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
                 );
                 buf.copy_within(4..4 + offset, 0);
                 buf[offset..offset + 2]
-                    .copy_from_slice(((udp_len - offset - 3) as u16).to_be_bytes().as_ref());
+                    .copy_from_slice(((len - offset - 3) as u16).to_be_bytes().as_ref());
                 buf[offset + 2..offset + 4].copy_from_slice(b"\r\n");
-                upstream_sender.write_all(&buf[..udp_len + 1]).await?;
+                Ok(buf)
+            };
+
+            buf = into_trojan_packet(buf, len)?;
+            self.request.extend_from_slice(&buf[..len + 1]);
+            upstream_sender.write_all(&self.request).await?;
+
+            loop {
+                len = client_receiver.recv(&mut buf[1..]).await?;
+                buf = into_trojan_packet(buf, len)?;
+                upstream_sender.write_all(&buf[..len + 1]).await?;
             }
         };
 

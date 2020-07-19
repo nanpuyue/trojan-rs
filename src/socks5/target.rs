@@ -73,13 +73,11 @@ pub trait TargetConnector: Send {
 
     async fn connect(&mut self) -> Result<()>;
 
-    fn connected(self) -> Result<Self::Upstream>;
+    async fn connected(self, payload: &[u8]) -> Result<Self::Upstream>;
 
     async fn udp_bind(&mut self) -> Result<()>;
 
-    fn udp_upstream(self) -> Result<Self::UdpUpstream>;
-
-    async fn forward_udp(client: Socks5UdpClient, upstream: Self::UdpUpstream) -> Result<()>;
+    async fn forward_udp(self, client: Socks5UdpClient) -> Result<()>;
 
     fn from(command: u8, target: &[u8]) -> Result<Self>
     where
@@ -108,7 +106,8 @@ impl TargetConnector for DirectConnector {
         Ok(())
     }
 
-    fn connected(mut self) -> Result<Self::Upstream> {
+    async fn connected(mut self, payload: &[u8]) -> Result<Self::Upstream> {
+        self.stream.as_mut()?.write_all(payload).await?;
         Ok(self.stream.take()?)
     }
 
@@ -124,20 +123,19 @@ impl TargetConnector for DirectConnector {
         Ok(())
     }
 
-    fn udp_upstream(mut self) -> Result<Self::UdpUpstream> {
-        Ok(self.udp_socket.take()?)
-    }
-
-    async fn forward_udp(client: Socks5UdpClient, upstream: Self::UdpUpstream) -> Result<()> {
+    async fn forward_udp(mut self, client: Socks5UdpClient) -> Result<()> {
         let client_addr = client.client_addr();
 
         let (client_receiver, client_sender) = &mut client.connect().await?.split();
-        let (upstream_receiver, upstream_sender) = &mut upstream.split();
+        let (upstream_receiver, upstream_sender) = &mut self.udp_socket.take()?.split();
 
         let t1 = async {
             let mut buf = vec![0; 1472];
             loop {
                 let len = client_receiver.recv(&mut buf).await?;
+                if &buf[..3] != b"\0\0\0" {
+                    return Err("Invalid socks5 udp request!".into());
+                }
                 let offset = Socks5Target::target_len(&buf[3..])?;
                 let target = Socks5Target::try_parse(&buf[3..3 + offset])?;
                 eprintln!("{} -> {} (udp)", client_addr, target);

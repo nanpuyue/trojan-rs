@@ -28,6 +28,8 @@ pub unsafe fn set_tls_connector() -> Result<()> {
 
     let mut builder = SslConnector::builder(SslMethod::tls_client())?;
 
+    // builder.set_keylog_callback(|_, keylog| println!("{}", keylog));
+
     if !ssl_config.verify {
         builder.set_verify(SslVerifyMode::NONE);
     };

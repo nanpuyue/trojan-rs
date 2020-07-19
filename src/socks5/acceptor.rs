@@ -66,8 +66,10 @@ impl Socks5Acceptor {
         eprintln!("{} -> {}", self.peer_addr(), connector.target());
         match connector.connect().await {
             Ok(_) => {
-                let stream = self.connected().await?;
-                let upstream = connector.connected()?;
+                let mut stream = self.connected().await?;
+                let buf = &mut Vec::new();
+                stream.read_buf(buf).await?;
+                let upstream = connector.connected(buf).await?;
                 link_stream(stream, upstream).await?;
                 Ok(())
             }
