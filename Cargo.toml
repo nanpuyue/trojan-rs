@@ -13,5 +13,5 @@ libc = "0.2.72"
 openssl = "0.10.30"
 serde = { version = "1.0.114", features = ["serde_derive"] }
 serde_json = "1.0.56"
-tokio = { version = "0.2.21", features = ["dns", "fs", "io-util", "macros", "rt-threaded", "stream", "tcp", "udp"] }
+tokio = { version = "0.2.21", features = ["dns", "io-util", "macros", "rt-threaded", "stream", "tcp", "udp"] }
 tokio-openssl = "0.4.0"
