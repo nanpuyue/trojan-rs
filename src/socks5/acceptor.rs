@@ -62,22 +62,18 @@ impl Socks5Acceptor {
         }
 
         debug_assert_eq!(command, 1);
+
         let mut connector = C::from(command, target)?;
         eprintln!("{} -> {}", self.peer_addr(), connector.target());
-        match connector.connect().await {
-            Ok(_) => {
-                let mut stream = self.connected().await?;
-                let buf = &mut Vec::new();
-                stream.read_buf(buf).await?;
-                let upstream = connector.connected(buf).await?;
-                link_stream(stream, upstream).await?;
-                Ok(())
-            }
-            Err(e) => {
-                self.closed().await?;
-                Err(e)
-            }
-        }
+        let mut stream = self.connected().await?;
+        connector.connect().await?;
+
+        let buf = &mut Vec::new();
+        stream.read_buf(buf).await?;
+        let upstream = connector.connected(buf).await?;
+        link_stream(stream, upstream).await?;
+
+        Ok(())
     }
 
     pub async fn connected(mut self) -> Result<Socks5Stream> {
