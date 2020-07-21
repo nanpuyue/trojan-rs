@@ -12,6 +12,7 @@ impl Socks5UdpClient {
             client_addr,
         }
     }
+
     pub fn client_addr(&self) -> SocketAddr {
         self.client_addr
     }

@@ -1,18 +1,4 @@
-use std::time::Duration;
-
-use async_trait::async_trait;
-use openssl::ssl::{SslConnector, SslMethod, SslOptions, SslSessionCacheMode, SslVerifyMode};
-use tokio::net::{TcpStream, ToSocketAddrs};
-use tokio_openssl::{connect, SslStream};
-
-use self::verify::*;
-use super::TLS_CONNECTOR;
-use crate::config::CONFIG;
-use crate::error::Result;
-
-#[allow(dead_code)]
-#[allow(clippy::transmute_ptr_to_ptr)]
-mod verify;
+use super::*;
 
 pub struct TlsConnector {
     connector: SslConnector,
@@ -83,7 +69,7 @@ pub unsafe fn set_tls_connector() -> Result<()> {
 }
 
 #[async_trait]
-impl super::TrojanTlsConnector for TlsConnector {
+impl TrojanTlsConnector for TlsConnector {
     type Stream = SslStream<TcpStream>;
 
     async fn connect<A>(&self, addr: A, domain: &str) -> Result<Self::Stream>
