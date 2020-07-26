@@ -9,6 +9,8 @@ use tokio::net::{TcpListener, TcpStream, ToSocketAddrs, UdpSocket};
 use tokio::stream::Stream;
 
 use crate::error::Result;
+use crate::route::{Action, Router};
+use crate::trojan::TrojanConnector;
 use crate::util::link_stream;
 
 pub use self::{

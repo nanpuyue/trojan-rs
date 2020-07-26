@@ -53,7 +53,7 @@ impl Socks5Acceptor {
 
         let mut connector = C::from(3, target)?;
         if let Err(e) = connector.udp_bind().await {
-            self.closed().await?;
+            self.closed(1).await?;
             return Err(e);
         };
 

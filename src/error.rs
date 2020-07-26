@@ -1,6 +1,6 @@
 use std::fmt::{self, Display, Formatter};
 use std::option::NoneError;
-use std::{error, io, result};
+use std::{error, result};
 
 use tokio::net::TcpStream;
 
@@ -47,7 +47,11 @@ impl From<NoneError> for Error {
     }
 }
 
-impl IntoError for io::Error {}
+impl IntoError for std::num::ParseIntError {}
+impl IntoError for std::net::AddrParseError {}
+impl IntoError for std::io::Error {}
+
+impl IntoError for regex::Error {}
 impl IntoError for serde_json::Error {}
 impl IntoError for openssl::error::ErrorStack {}
 impl IntoError for tokio_openssl::HandshakeError<TcpStream> {}

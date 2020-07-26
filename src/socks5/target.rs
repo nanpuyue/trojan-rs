@@ -82,8 +82,6 @@ pub trait TargetConnector: Send {
     fn from(command: u8, target: &[u8]) -> Result<Self>
     where
         Self: Sized;
-
-    fn target(&self) -> &Socks5Target;
 }
 
 pub struct DirectConnector {
@@ -194,13 +192,10 @@ impl TargetConnector for DirectConnector {
 
     fn from(_: u8, target: &[u8]) -> Result<Self> {
         Ok(Self {
+            // FIXME
             target: Socks5Target::try_parse(target)?,
             stream: None,
             udp_socket: None,
         })
-    }
-
-    fn target(&self) -> &Socks5Target {
-        &self.target
     }
 }

@@ -15,7 +15,6 @@ type TlsStream = <TlsConnector as TrojanTlsConnector>::Stream;
 pub struct TrojanConnector<'a, A: ToSocketAddrs> {
     remote: A,
     domain: &'a str,
-    target: Socks5Target,
     stream: Option<TlsStream>,
     request: Vec<u8>,
 }
@@ -84,7 +83,7 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
                 }
                 let offset = Socks5Target::target_len(&buf[4..])?;
                 eprintln!(
-                    "{} -> {} (udp)",
+                    "{} ~> {} (udp)",
                     client_addr,
                     Socks5Target::try_parse(&buf[4..4 + offset])?
                 );
@@ -149,14 +148,9 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
             Ok(Self {
                 remote,
                 domain,
-                target: Socks5Target::try_parse(target)?,
                 stream: None,
                 request: Self::trojan_request(command, target),
             })
         }
-    }
-
-    fn target(&self) -> &Socks5Target {
-        &self.target
     }
 }

@@ -24,6 +24,22 @@ impl ToHex for [u8] {
     }
 }
 
+pub trait TrimInPlace {
+    fn trim_in_place(&mut self);
+}
+
+impl TrimInPlace for String {
+    fn trim_in_place(&mut self) {
+        let trimmed = self.trim();
+        let len = trimmed.len();
+
+        unsafe {
+            core::ptr::copy(trimmed.as_ptr(), self.as_mut_ptr(), len);
+        }
+        self.truncate(len);
+    }
+}
+
 pub async fn link_stream<A: AsyncRead + AsyncWrite, B: AsyncRead + AsyncWrite>(
     a: A,
     b: B,
