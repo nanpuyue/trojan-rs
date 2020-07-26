@@ -200,7 +200,12 @@ impl Router {
     }
 
     fn route_domain(&self, domain: &str) -> Action {
-        if self.reject.match_domain(domain) {
+        if domain.ends_with(char::is_numeric) && domain.contains('.') {
+            match Ipv4Addr::from_str(domain) {
+                Ok(x) => self.route_ipv4(x),
+                Err(_) => Action::Reject,
+            }
+        } else if self.reject.match_domain(domain) {
             Action::Reject
         } else if self.default == Action::Direct && self.proxy.match_domain(domain) {
             Action::Proxy
