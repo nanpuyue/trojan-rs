@@ -3,15 +3,15 @@ use super::*;
 pub enum Socks5Target {
     V4(SocketAddrV4),
     V6(SocketAddrV6),
-    Domain(String),
+    Domain((String, u16)),
 }
 
 impl Display for Socks5Target {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::V4(s) => s.fmt(f),
-            Self::V6(s) => s.fmt(f),
-            Self::Domain(s) => s.fmt(f),
+            Self::V4(x) => x.fmt(f),
+            Self::V6(x) => x.fmt(f),
+            Self::Domain(x) => write!(f, "{}:{}", x.0, x.1),
         }
     }
 }
@@ -42,8 +42,16 @@ impl Socks5Target {
             Ok(s) => s,
             Err(e) => return Err(format!("Invalid Domain: {}!", e).into()),
         };
-        let port = u16::from_be_bytes([data[len - 2], data[len - 1]]).to_string();
-        Ok(Self::Domain(domain + ":" + &port))
+        let port = u16::from_be_bytes([data[len - 2], data[len - 1]]);
+        Ok(Self::Domain((domain, port)))
+    }
+
+    pub fn port(&self) -> u16 {
+        match self {
+            Self::V4(x) => x.port(),
+            Self::V6(x) => x.port(),
+            Self::Domain(x) => x.1,
+        }
     }
 
     pub fn target_len(data: &[u8]) -> Result<usize> {
@@ -97,9 +105,9 @@ impl TargetConnector for DirectConnector {
 
     async fn connect(&mut self) -> Result<()> {
         self.stream = Some(match &self.target {
-            Socks5Target::V4(s) => TcpStream::connect(s).await?,
-            Socks5Target::V6(s) => TcpStream::connect(s).await?,
-            Socks5Target::Domain(s) => TcpStream::connect(s).await?,
+            Socks5Target::V4(x) => TcpStream::connect(x).await?,
+            Socks5Target::V6(x) => TcpStream::connect(x).await?,
+            Socks5Target::Domain(x) => TcpStream::connect((x.0.as_str(), x.1)).await?,
         });
         Ok(())
     }
@@ -147,7 +155,7 @@ impl TargetConnector for DirectConnector {
                         upstream_sender.send_to(data, &x.into()).await?;
                     }
                     Socks5Target::Domain(x) => {
-                        match lookup_host(x).await?.next() {
+                        match lookup_host((x.0.as_str(), x.1)).await?.next() {
                             Some(addr) => upstream_sender.send_to(data, &addr).await?,
                             None => return Err("No addresses to send data to!".into()),
                         };

@@ -221,10 +221,7 @@ impl Router {
             Socks5Target::V4(x) => self.route_ipv4(*x.ip()),
             // TODO: ipv6 route
             Socks5Target::V6(_) => self.default,
-            Socks5Target::Domain(x) => match x.splitn(2, ':').next() {
-                Some(x) => self.route_domain(x),
-                None => Action::Reject,
-            },
+            Socks5Target::Domain(x) => self.route_domain(&x.0),
         }
     }
 
