@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream, ToSocketAddrs, UdpSocket};
+use tokio::net::{lookup_host, TcpListener, TcpStream, ToSocketAddrs, UdpSocket};
 use tokio::stream::Stream;
 
 use crate::error::Result;

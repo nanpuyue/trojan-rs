@@ -138,18 +138,20 @@ impl TargetConnector for DirectConnector {
                 let target = Socks5Target::try_parse(&buf[3..3 + offset])?;
                 eprintln!("{} -> {} (udp)", client_addr, target);
 
+                let data = &buf[3 + offset..len - 3 - offset];
                 match target {
                     Socks5Target::V4(x) => {
-                        upstream_sender
-                            .send_to(&buf[3 + offset..len - 3 - offset], &x.into())
-                            .await?;
+                        upstream_sender.send_to(data, &x.into()).await?;
                     }
                     Socks5Target::V6(x) => {
-                        upstream_sender
-                            .send_to(&buf[3 + offset..len - 3 - offset], &x.into())
-                            .await?;
+                        upstream_sender.send_to(data, &x.into()).await?;
                     }
-                    _ => return Err("Not support domain target for udp associate!".into()),
+                    Socks5Target::Domain(x) => {
+                        match lookup_host(x).await?.next() {
+                            Some(addr) => upstream_sender.send_to(data, &addr).await?,
+                            None => return Err("No addresses to send data to!".into()),
+                        };
+                    }
                 };
             }
         };
