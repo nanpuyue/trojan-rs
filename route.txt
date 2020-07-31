@@ -1,0 +1,39 @@
+# an example of route rules
+
+[default]
+# `direct` or `proxy`
+proxy
+
+[direct]
+# only effective when the default set to `proxy`
+
+# CIDR
+10.0.0.0/8
+127.0.0.0/8
+172.16.0.0/12
+192.168.0.0/16
+
+# IP
+192.168.1.1
+
+# include subdomain
+org
+example.com
+
+# not include subdomain
+^www.example.com
+
+[proxy]
+# only effective when the default set to `direct`
+
+
+[reject]
+# multicast
+224.0.0.0/4
+
+# reserved
+0.0.0.0/8
+
+# ad
+doubleclick.net
+^mail-ads.google.com
