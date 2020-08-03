@@ -1,3 +1,5 @@
+use std::mem::MaybeUninit;
+
 use tokio::io::{self, AsyncRead, AsyncWrite};
 
 use crate::error::Result;
@@ -57,4 +59,24 @@ pub async fn link_stream<A: AsyncRead + AsyncWrite, B: AsyncRead + AsyncWrite>(
     };
 
     Ok(r.map(drop)?)
+}
+
+#[cfg(target_family = "unix")]
+pub fn set_rlimit_nofile(limit: libc::rlim_t) -> Result<()> {
+    unsafe {
+        let mut rlimit = MaybeUninit::uninit();
+        if libc::getrlimit(libc::RLIMIT_NOFILE, rlimit.as_mut_ptr()) != 0 {
+            return Err((io::Error::last_os_error()).into());
+        }
+        let mut rlimit = rlimit.assume_init();
+
+        if rlimit.rlim_cur < limit {
+            rlimit.rlim_cur = limit;
+            if libc::setrlimit(libc::RLIMIT_NOFILE, &rlimit) != 0 {
+                return Err((io::Error::last_os_error()).into());
+            }
+        }
+    }
+
+    Ok(())
 }

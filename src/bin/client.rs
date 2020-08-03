@@ -11,6 +11,7 @@ use trojan::error::Result;
 use trojan::route::Router;
 use trojan::socks5::Socks5Listener;
 use trojan::tls::set_tls_connector;
+use trojan::util::set_rlimit_nofile;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -55,6 +56,12 @@ async fn main() -> Result<()> {
         (addr, port)
     };
     let mut listener = Socks5Listener::listen(local).await?;
+
+    #[cfg(target_family = "unix")]
+    eprintln!(
+        "set_rlimit_nofile: {}",
+        set_rlimit_nofile(1024).map_or_else(|e| e.to_string(), |_| "Ok".into())
+    );
 
     while let Some((acceptor, client)) = listener.next().await.transpose()? {
         let router = router.clone();
