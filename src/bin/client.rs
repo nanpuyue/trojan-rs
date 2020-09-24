@@ -51,8 +51,8 @@ async fn main() -> Result<()> {
     };
 
     let local = unsafe {
-        let addr = CONFIG.get_ref().local_addr.as_ref();
-        let port = CONFIG.get_ref().local_port;
+        let addr = CONFIG.assume_init_ref().local_addr.as_ref();
+        let port = CONFIG.assume_init_ref().local_port;
         (addr, port)
     };
     let mut listener = Socks5Listener::listen(local).await?;

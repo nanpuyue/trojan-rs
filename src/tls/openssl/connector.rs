@@ -10,7 +10,7 @@ pub struct TlsConnector {
 
 #[allow(clippy::missing_safety_doc)]
 pub unsafe fn set_tls_connector() -> Result<()> {
-    let ssl_config = CONFIG.get_ref().ssl.client()?;
+    let ssl_config = CONFIG.assume_init_ref().ssl.client()?;
 
     let mut builder = SslConnector::builder(SslMethod::tls_client())?;
 
@@ -56,7 +56,7 @@ pub unsafe fn set_tls_connector() -> Result<()> {
 
     // TODO: set curves list
 
-    let tcp_config = &CONFIG.get_ref().tcp;
+    let tcp_config = &CONFIG.assume_init_ref().tcp;
     TLS_CONNECTOR.write(TlsConnector {
         connector: builder.build(),
         sni: !ssl_config.sni.is_empty(),

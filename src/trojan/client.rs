@@ -24,7 +24,7 @@ impl<A: ToSocketAddrs> TrojanConnector<'_, A> {
         static mut PASSWORD_HASH: Vec<u8> = Vec::new();
         static HASH_PASSWORD: Once = Once::new();
         HASH_PASSWORD.call_once(|| unsafe {
-            let password = CONFIG.get_ref().password[0].as_bytes();
+            let password = CONFIG.assume_init_ref().password[0].as_bytes();
             PASSWORD_HASH = sha224(password).to_hex().into();
         });
 
@@ -47,7 +47,7 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
     async fn connect(&mut self) -> Result<()> {
         let stream = unsafe {
             TLS_CONNECTOR
-                .get_ref()
+                .assume_init_ref()
                 .connect(&self.remote, &self.domain)
                 .await?
         };
@@ -138,11 +138,11 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
         Self: Sized,
     {
         unsafe {
-            let addr = CONFIG.get_ref().remote_addr.as_ref();
-            let port = CONFIG.get_ref().remote_port;
+            let addr = CONFIG.assume_init_ref().remote_addr.as_ref();
+            let port = CONFIG.assume_init_ref().remote_port;
             let remote = (addr, port);
 
-            let sni = CONFIG.get_ref().ssl.client()?.sni.as_str();
+            let sni = CONFIG.assume_init_ref().ssl.client()?.sni.as_str();
             let domain = if sni.is_empty() { addr } else { sni };
 
             Ok(Self {
