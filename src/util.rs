@@ -1,8 +1,9 @@
+#[cfg(target_family = "unix")]
 use std::mem::MaybeUninit;
 
 use tokio::io::{self, AsyncRead, AsyncWrite};
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 
 pub fn sha224(data: &[u8]) -> [u8; 28] {
     openssl::sha::sha224(data)
@@ -23,6 +24,16 @@ impl ToHex for [u8] {
         }
 
         unsafe { String::from_utf8_unchecked(v) }
+    }
+}
+
+pub trait IntoResult<T> {
+    fn into_result(self) -> Result<T>;
+}
+
+impl<T> IntoResult<T> for Option<T> {
+    fn into_result(self) -> Result<T> {
+        self.ok_or_else(|| Error::from("NoneError"))
     }
 }
 

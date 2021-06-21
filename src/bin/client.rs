@@ -1,5 +1,4 @@
 #![feature(maybe_uninit_extra)]
-#![feature(maybe_uninit_ref)]
 
 use std::sync::Arc;
 
@@ -11,6 +10,7 @@ use trojan::error::Result;
 use trojan::route::Router;
 use trojan::socks5::Socks5Listener;
 use trojan::tls::set_tls_connector;
+#[cfg(target_family = "unix")]
 use trojan::util::set_rlimit_nofile;
 
 #[tokio::main]

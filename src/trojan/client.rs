@@ -8,7 +8,7 @@ use crate::config::CONFIG;
 use crate::error::Result;
 use crate::socks5::{Socks5Target, Socks5UdpClient, TargetConnector};
 use crate::tls::{TlsConnector, TrojanTlsConnector, TLS_CONNECTOR};
-use crate::util::{sha224, ToHex};
+use crate::util::{sha224, IntoResult, ToHex};
 
 type TlsStream = <TlsConnector as TrojanTlsConnector>::Stream;
 
@@ -48,7 +48,7 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
         let stream = unsafe {
             TLS_CONNECTOR
                 .assume_init_ref()
-                .connect(&self.remote, &self.domain)
+                .connect(&self.remote, self.domain)
                 .await?
         };
         self.stream = Some(stream);
@@ -58,8 +58,12 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
 
     async fn connected(mut self, payload: &[u8]) -> Result<Self::Upstream> {
         self.request.extend_from_slice(payload);
-        self.stream.as_mut()?.write_all(&self.request).await?;
-        Ok(self.stream.take()?)
+        self.stream
+            .as_mut()
+            .into_result()?
+            .write_all(&self.request)
+            .await?;
+        Ok(self.stream.take().into_result()?)
     }
 
     async fn udp_bind(&mut self) -> Result<()> {
@@ -68,7 +72,7 @@ impl TargetConnector for TrojanConnector<'_, (&'_ str, u16)> {
 
     async fn forward_udp(mut self, client: Socks5UdpClient) -> Result<()> {
         let client_addr = client.client_addr();
-        let upstream = self.stream.take()?;
+        let upstream = self.stream.take().into_result()?;
 
         let (client_receiver, client_sender) = &mut client.connect().await?.split();
         let (upstream_receiver, upstream_sender) = &mut split(upstream);

@@ -11,7 +11,7 @@ use tokio::stream::Stream;
 use crate::error::Result;
 use crate::route::{Action, Router};
 use crate::trojan::TrojanConnector;
-use crate::util::link_stream;
+use crate::util::{link_stream, IntoResult};
 
 pub use self::{
     acceptor::Socks5Acceptor,

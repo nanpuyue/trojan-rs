@@ -9,7 +9,7 @@ use regex::Regex;
 
 use crate::error::Result;
 use crate::socks5::Socks5Target;
-use crate::util::TrimInPlace;
+use crate::util::{IntoResult, TrimInPlace};
 
 struct Section {
     domain: HashSet<String>,
@@ -42,7 +42,7 @@ impl Section {
 
     fn insert_ipv4(&mut self, line: String) -> Result<()> {
         let mut split = line.splitn(2, '/');
-        let ip = Ipv4Addr::from_str(split.next()?)?.into();
+        let ip = Ipv4Addr::from_str(split.next().into_result()?)?.into();
         let prefix = match split.next() {
             Some(x) => match u8::from_str(x)? {
                 n @ 0..=32 => n,
@@ -152,11 +152,11 @@ impl Router {
             }
 
             if line.starts_with('[') {
-                section = match &line[1..] {
-                    "direct]" => Some(&mut router.direct),
-                    "proxy]" => Some(&mut router.proxy),
-                    "reject]" => Some(&mut router.reject),
-                    "default]" => None,
+                section = match line.as_str() {
+                    "[direct]" => Some(&mut router.direct),
+                    "[proxy]" => Some(&mut router.proxy),
+                    "[reject]" => Some(&mut router.reject),
+                    "[default]" => None,
                     _ => return Err((line + ": Invalid section!").into()),
                 };
                 continue;

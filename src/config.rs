@@ -105,8 +105,8 @@ mod ssl {
         pub dhparam: String,
     }
 
-    #[serde(untagged)]
     #[derive(Debug, Deserialize, Serialize)]
+    #[serde(untagged)]
     pub enum Config {
         Client(Client),
         Server(Server),

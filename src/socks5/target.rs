@@ -113,8 +113,12 @@ impl TargetConnector for DirectConnector {
     }
 
     async fn connected(mut self, payload: &[u8]) -> Result<Self::Upstream> {
-        self.stream.as_mut()?.write_all(payload).await?;
-        Ok(self.stream.take()?)
+        self.stream
+            .as_mut()
+            .into_result()?
+            .write_all(payload)
+            .await?;
+        Ok(self.stream.take().into_result()?)
     }
 
     async fn udp_bind(&mut self) -> Result<()> {
@@ -133,7 +137,8 @@ impl TargetConnector for DirectConnector {
         let client_addr = client.client_addr();
 
         let (client_receiver, client_sender) = &mut client.connect().await?.split();
-        let (upstream_receiver, upstream_sender) = &mut self.udp_socket.take()?.split();
+        let (upstream_receiver, upstream_sender) =
+            &mut self.udp_socket.take().into_result()?.split();
 
         let t1 = async {
             let mut buf = vec![0; 1472];
