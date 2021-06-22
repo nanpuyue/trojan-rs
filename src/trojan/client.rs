@@ -8,7 +8,7 @@ use crate::config::CONFIG;
 use crate::error::Result;
 use crate::socks5::{Socks5Target, Socks5UdpClient, TargetConnector};
 use crate::tls::{TlsConnector, TrojanTlsConnector, TLS_CONNECTOR};
-use crate::util::{sha224, IntoResult, ToHex};
+use crate::util::{sha224, IntoResult, Split, ToHex};
 
 type TlsStream = <TlsConnector as TrojanTlsConnector>::Stream;
 

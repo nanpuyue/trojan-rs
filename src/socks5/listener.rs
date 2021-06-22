@@ -15,7 +15,7 @@ impl Socks5Listener {
 impl Stream for Socks5Listener {
     type Item = Result<(Socks5Acceptor, SocketAddr)>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let (stream, client) = match self.listener.poll_accept(cx) {
             Poll::Ready(t) => t,
             Poll::Pending => return Poll::Pending,

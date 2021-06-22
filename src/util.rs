@@ -1,7 +1,16 @@
 #[cfg(target_family = "unix")]
-use std::mem::MaybeUninit;
+use std::mem::{forget, MaybeUninit};
+use std::net::SocketAddr;
+#[cfg(target_family = "unix")]
+use std::os::unix::io::{AsRawFd, FromRawFd};
+use std::sync::Arc;
 
+#[cfg(target_family = "unix")]
+use mio::net::TcpSocket;
 use tokio::io::{self, AsyncRead, AsyncWrite};
+#[cfg(target_family = "unix")]
+use tokio::net::TcpStream;
+use tokio::net::UdpSocket;
 
 use crate::error::{Error, Result};
 
@@ -72,6 +81,47 @@ pub async fn link_stream<A: AsyncRead + AsyncWrite, B: AsyncRead + AsyncWrite>(
     Ok(r.map(drop)?)
 }
 
+#[derive(Debug)]
+pub struct SendHalf<T>(Arc<T>);
+
+#[derive(Debug)]
+pub struct RecvHalf<T>(Arc<T>);
+
+pub trait Split {
+    fn split(self) -> (RecvHalf<Self>, SendHalf<Self>)
+    where
+        Self: Sized;
+}
+
+impl Split for UdpSocket {
+    fn split(self) -> (RecvHalf<UdpSocket>, SendHalf<UdpSocket>) {
+        let shared = Arc::new(self);
+        let send = shared.clone();
+        let recv = shared;
+        (RecvHalf(recv), SendHalf(send))
+    }
+}
+
+impl RecvHalf<UdpSocket> {
+    pub async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
+        self.0.recv_from(buf).await
+    }
+
+    pub async fn recv(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.recv(buf).await
+    }
+}
+
+impl SendHalf<UdpSocket> {
+    pub async fn send_to(&mut self, buf: &[u8], target: &SocketAddr) -> io::Result<usize> {
+        self.0.send_to(buf, target).await
+    }
+
+    pub async fn send(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.send(buf).await
+    }
+}
+
 #[cfg(target_family = "unix")]
 pub fn set_rlimit_nofile(limit: libc::rlim_t) -> Result<()> {
     unsafe {
@@ -90,4 +140,13 @@ pub fn set_rlimit_nofile(limit: libc::rlim_t) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(target_family = "unix")]
+pub fn set_tcp_keepalive(tcpstream: &TcpStream, keepalive: bool) -> Result<()> {
+    let tcpsocket = unsafe { TcpSocket::from_raw_fd(tcpstream.as_raw_fd()) };
+    let ret = tcpsocket.set_keepalive(keepalive);
+
+    forget(tcpsocket);
+    Ok(ret?)
 }

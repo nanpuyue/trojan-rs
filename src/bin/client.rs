@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use clap::{App, Arg};
-use tokio::stream::StreamExt;
+use tokio_stream::StreamExt;
 
 use trojan::config::{set_config, CONFIG};
 use trojan::error::Result;
@@ -16,7 +16,7 @@ use trojan::util::set_rlimit_nofile;
 #[tokio::main]
 async fn main() -> Result<()> {
     let matches = App::new("trojan-rs")
-        .version("0.1.0")
+        .version("0.2.0")
         .author("南浦月 <nanpuyue@gmail.com>")
         .about("Rust implementation of the trojan protocol")
         .arg(

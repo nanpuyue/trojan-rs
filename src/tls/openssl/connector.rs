@@ -5,6 +5,7 @@ pub struct TlsConnector {
     sni: bool,
     verify_hostname: bool,
     tcp_nodelay: bool,
+    #[allow(dead_code)]
     tcp_keepalive: bool,
 }
 
@@ -77,22 +78,18 @@ impl TrojanTlsConnector for TlsConnector {
         A: ToSocketAddrs + Send + Sync,
     {
         let mut config = self.connector.configure()?;
-        let pub_config = config.trans_public();
-        pub_config
-            .ssl
-            .param_mut()
-            .set_flags(X509_V_FLAG_PARTIAL_CHAIN);
-        pub_config.sni = self.sni;
-        pub_config.verify_hostname = self.verify_hostname;
+        config.set_use_server_name_indication(self.sni);
+        config.set_verify_hostname(self.verify_hostname);
+        let mut ssl = config.into_ssl(domain)?;
+        ssl.param_mut().set_flags(X509VerifyFlags::PARTIAL_CHAIN)?;
 
         let tcpstream = TcpStream::connect(addr).await?;
         tcpstream.set_nodelay(self.tcp_nodelay)?;
-        if self.tcp_keepalive {
-            tcpstream.set_keepalive(Some(Duration::from_secs(30)))?;
-        } else {
-            tcpstream.set_keepalive(None)?;
-        }
-        let stream = connect(config, domain, tcpstream).await?;
+        #[cfg(target_family = "unix")]
+        set_tcp_keepalive(&tcpstream, self.tcp_keepalive)?;
+
+        let mut stream = SslStream::new(ssl, tcpstream)?;
+        Pin::new(&mut stream).connect().await?;
 
         Ok(stream)
     }

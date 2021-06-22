@@ -1,8 +1,6 @@
 use std::fmt::{self, Display, Formatter};
 use std::{error, result};
 
-use tokio::net::TcpStream;
-
 pub type Result<T> = result::Result<T, Error>;
 
 pub trait IntoError {}
@@ -47,4 +45,4 @@ impl IntoError for std::io::Error {}
 impl IntoError for regex::Error {}
 impl IntoError for serde_json::Error {}
 impl IntoError for openssl::error::ErrorStack {}
-impl IntoError for tokio_openssl::HandshakeError<TcpStream> {}
+impl IntoError for openssl::ssl::Error {}

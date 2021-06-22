@@ -6,12 +6,12 @@ use std::task::{Context, Poll};
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{lookup_host, TcpListener, TcpStream, ToSocketAddrs, UdpSocket};
-use tokio::stream::Stream;
+use tokio_stream::Stream;
 
 use crate::error::Result;
 use crate::route::{Action, Router};
 use crate::trojan::TrojanConnector;
-use crate::util::{link_stream, IntoResult};
+use crate::util::{link_stream, IntoResult, Split};
 
 pub use self::{
     acceptor::Socks5Acceptor,
