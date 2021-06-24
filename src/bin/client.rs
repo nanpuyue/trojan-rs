@@ -58,10 +58,7 @@ async fn main() -> Result<()> {
     let mut listener = Socks5Listener::listen(local).await?;
 
     #[cfg(target_family = "unix")]
-    eprintln!(
-        "set_rlimit_nofile: {}",
-        set_rlimit_nofile(1024).map_or_else(|e| e.to_string(), |_| "Ok".into())
-    );
+    set_rlimit_nofile(4096).unwrap_or_else(|e| eprintln!("set RLIMIT_NOFILE failed: {}", e));
 
     while let Some((acceptor, client)) = listener.next().await.transpose()? {
         let router = router.clone();
